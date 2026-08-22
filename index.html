@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12302C">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Årsbudget">
+<meta name="description" content="Årsbudget för hushållet: fasta och rörliga kostnader månad för månad.">
+<title>Årsbudget</title>
+<style>
+:root{
+  --ink:#12302C;
+  --paper:#F1F3EF;
+  --card:#FFFFFF;
+  --fast:#2E6C63;
+  --rorlig:#C08327;
+  --over:#A33F3B;
+  --muted:#66746F;
+  --line:#DDE2DC;
+  --radius:10px;
+  --data:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--ui);
+  font-size:16px;
+  line-height:1.45;
+  -webkit-text-size-adjust:100%;
+}
+button{font-family:inherit;font-size:inherit;cursor:pointer}
+input{font-family:inherit;font-size:inherit}
+:focus-visible{outline:2px solid var(--fast);outline-offset:2px}
+
+/* ---------- topp ---------- */
+header{
+  background:var(--ink);color:#EDF1EE;
+  padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px)/8) 16px;
+  padding-top:calc(14px + env(safe-area-inset-top,0px));
+}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.brand h1{
+  font-family:var(--display);
+  font-weight:600;font-size:22px;letter-spacing:.01em;margin:0;
+}
+.year-pick{display:flex;align-items:center;gap:6px}
+.year-pick button{
+  background:transparent;border:1px solid rgba(237,241,238,.35);color:#EDF1EE;
+  width:30px;height:30px;border-radius:8px;line-height:1;padding:0;
+}
+.year-pick button:active{background:rgba(237,241,238,.15)}
+.year-pick .y{font-family:var(--data);font-size:17px;min-width:52px;text-align:center}
+.saved{font-size:12px;color:#9FB5AE;height:16px;margin-top:2px}
+
+/* ---------- flikar ---------- */
+nav{display:flex;background:var(--ink);border-top:1px solid rgba(237,241,238,.12)}
+nav button{
+  flex:1;background:transparent;border:0;color:#9FB5AE;
+  padding:11px 4px 13px;font-size:14px;letter-spacing:.02em;
+  border-bottom:2px solid transparent;
+}
+nav button[aria-selected="true"]{color:#fff;border-bottom-color:var(--rorlig)}
+
+main{padding:14px 12px 60px;max-width:900px;margin:0 auto}
+section[hidden]{display:none}
+
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px;margin-bottom:12px;
+}
+.eyebrow{
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 8px;font-weight:600;
+}
+
+/* ---------- månadsväljare ---------- */
+.months{
+  display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+}
+.months::-webkit-scrollbar{display:none}
+.months button{
+  flex:0 0 auto;background:var(--card);border:1px solid var(--line);
+  border-radius:999px;padding:7px 13px;color:var(--muted);
+}
+.months button[aria-pressed="true"]{
+  background:var(--ink);border-color:var(--ink);color:#fff;
+}
+
+/* ---------- summering ---------- */
+.sum{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.sum div{background:var(--card);padding:10px 8px;text-align:center}
+.sum .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sum .v{font-family:var(--data);font-size:18px;margin-top:2px;font-variant-numeric:tabular-nums}
+.pos{color:var(--fast)} .neg{color:var(--over)}
+
+/* ---------- kategorirader ---------- */
+.grouphead{
+  display:flex;justify-content:space-between;align-items:baseline;
+  margin:18px 2px 6px;
+}
+.grouphead h2{font-size:14px;margin:0;letter-spacing:.02em}
+.grouphead .tot{font-family:var(--data);font-size:14px;color:var(--muted)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:7px}
+.dot.f{background:var(--fast)} .dot.r{background:var(--rorlig)}
+
+.row{
+  display:flex;align-items:center;gap:8px;
+  background:var(--card);border:1px solid var(--line);border-top:0;
+  padding:9px 10px;
+}
+.row:first-of-type{border-top:1px solid var(--line);border-radius:var(--radius) var(--radius) 0 0}
+.row:last-of-type{border-radius:0 0 var(--radius) var(--radius)}
+.row .name{flex:1;min-width:0}
+.row .name b{font-weight:500;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .name small{color:var(--muted);font-size:12px;font-family:var(--data)}
+.amt{
+  width:98px;text-align:right;font-family:var(--data);font-variant-numeric:tabular-nums;
+  border:1px solid var(--line);border-radius:8px;padding:8px 9px;background:var(--paper);
+}
+.amt:focus{background:#fff;border-color:var(--fast)}
+.fill{
+  border:1px solid var(--line);background:var(--card);color:var(--muted);
+  border-radius:8px;width:34px;height:36px;padding:0;flex:0 0 auto;
+}
+.fill:active{background:var(--paper)}
+
+/* ---------- årsremsa (signaturen) ---------- */
+.strip{width:100%;height:auto;display:block;touch-action:manipulation}
+.strip .bar{cursor:pointer}
+.strip text{font-family:var(--data);font-size:9px;fill:var(--muted)}
+.strip text.on{fill:var(--ink);font-weight:700}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
+
+/* ---------- årstabell ---------- */
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
+table{border-collapse:separate;border-spacing:0;font-family:var(--data);font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;white-space:nowrap;border-bottom:1px solid var(--line)}
+thead th{
+  position:sticky;top:0;background:var(--card);font-weight:600;font-size:11px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--muted);z-index:2;
+}
+.stick{
+  position:sticky;left:0;background:var(--card);text-align:left;font-family:var(--ui);
+  font-size:13px;max-width:158px;overflow:hidden;text-overflow:ellipsis;z-index:1;
+  border-right:1px solid var(--line);
+}
+thead .stick{z-index:3}
+tbody tr.grp td{background:var(--paper);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+tbody tr.grp .stick{background:var(--paper)}
+td input{
+  width:64px;text-align:right;border:0;background:transparent;padding:2px 3px;
+  font-family:var(--data);font-size:13px;color:var(--ink);border-radius:5px;
+  font-variant-numeric:tabular-nums;
+}
+td input:focus{background:var(--paper);outline:1px solid var(--fast)}
+td.sum-col{background:var(--paper);font-weight:600}
+tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:0}
+tfoot .stick{background:var(--card)}
+#subTable tbody td{font-weight:600}
+#subTable tbody tr:last-child td{border-bottom:0}
+
+/* ---------- knappar ---------- */
+.btn{
+  border:1px solid var(--ink);background:var(--ink);color:#fff;
+  border-radius:8px;padding:10px 14px;
+}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.warn{border-color:var(--over);color:var(--over);background:transparent}
+.btn:active{opacity:.85}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- kategorieditor ---------- */
+.cat{display:flex;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.cat input.nm{flex:1;min-width:0;border:1px solid transparent;background:transparent;padding:6px 6px;border-radius:6px}
+.cat input.nm:focus{border-color:var(--line);background:var(--paper)}
+.cat .type{
+  border:1px solid var(--line);background:var(--card);border-radius:999px;
+  font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;color:var(--muted);
+}
+.cat .type[data-t="fast"]{border-color:var(--fast);color:var(--fast)}
+.cat .type[data-t="rorlig"]{border-color:var(--rorlig);color:var(--rorlig)}
+.cat .bud{width:82px}
+.cat .del{border:0;background:transparent;color:var(--muted);font-size:19px;padding:2px 6px;line-height:1}
+.hint{font-size:13px;color:var(--muted);margin:10px 2px 0}
+.hint b{color:var(--ink);font-weight:600}
+.empty{color:var(--muted);font-size:14px;padding:18px 4px;text-align:center}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>Årsbudget</h1>
+    <div class="year-pick">
+      <button id="yPrev" aria-label="Föregående år">‹</button>
+      <span class="y" id="yLabel">–</span>
+      <button id="yNext" aria-label="Nästa år">›</button>
+    </div>
+  </div>
+  <div class="saved" id="saved"></div>
+</header>
+
+<nav role="tablist">
+  <button role="tab" aria-selected="true" data-view="manad">Månad</button>
+  <button role="tab" aria-selected="false" data-view="ar">År</button>
+  <button role="tab" aria-selected="false" data-view="kat">Kategorier</button>
+</nav>
+
+<main>
+  <!-- ===== MÅNAD ===== -->
+  <section id="view-manad">
+    <div class="months" id="monthChips"></div>
+
+    <div class="sum" id="monthSum"></div>
+
+    <div class="card" style="margin-top:12px">
+      <p class="eyebrow">Inkomst denna månad</p>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input class="amt" id="incomeInput" inputmode="decimal" placeholder="0" style="width:120px">
+        <span style="color:var(--muted);font-size:14px">kr in efter skatt</span>
+      </div>
+      <p class="hint" id="leftOver"></p>
+    </div>
+
+    <div id="monthRows"></div>
+  </section>
+
+  <!-- ===== ÅR ===== -->
+  <section id="view-ar" hidden>
+    <div class="card">
+      <p class="eyebrow">Året i kolumner</p>
+      <svg class="strip" id="strip" viewBox="0 0 372 150" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Utgifter per månad"></svg>
+      <div class="legend">
+        <span><span class="dot f"></span>Fasta</span>
+        <span><span class="dot r"></span>Rörliga</span>
+        <span>– – –  budget</span>
+      </div>
+    </div>
+
+    <div class="sum" id="yearSum"></div>
+
+    <div class="grouphead"><h2>Alla poster</h2><span class="tot">svep i sidled →</span></div>
+    <div class="scroll"><table id="yearTable"></table></div>
+
+    <div class="grouphead" id="subHead" hidden><h2>Delsummor</h2><span class="tot">bostad och person</span></div>
+    <div class="scroll" id="subWrap" hidden><table id="subTable"></table></div>
+    <p class="hint" id="subHint" hidden></p>
+
+    <div class="card" style="margin-top:12px">
+      <p class="eyebrow">Dela och säkerhetskopiera</p>
+      <p class="hint" style="margin-top:0">Varje enhet sparar sin egen kopia. Exportera en fil och skicka den till din fru så ni utgår från samma siffror.</p>
+      <div class="btnrow" style="margin-top:10px">
+        <button class="btn ghost" id="expJson">Exportera fil</button>
+        <button class="btn ghost" id="impBtn">Importera fil</button>
+        <button class="btn ghost" id="expCsv">Exportera CSV</button>
+      </div>
+      <input type="file" id="impFile" accept="application/json,.json" hidden>
+    </div>
+  </section>
+
+  <!-- ===== KATEGORIER ===== -->
+  <section id="view-kat" hidden>
+    <div class="card">
+      <p class="eyebrow">Kategorier och månadsbudget</p>
+      <p class="hint" style="margin-top:0">Tryck på etiketten för att växla mellan fast och rörlig kostnad. Beloppet är vad ni räknar med per månad — årsbudgeten blir det gånger tolv.</p>
+      <div id="catList"></div>
+      <div class="btnrow" style="margin-top:14px">
+        <button class="btn" id="addCat">Lägg till kategori</button>
+        <button class="btn warn" id="resetAll">Börja om</button>
+      </div>
+    </div>
+    <div class="card">
+      <p class="eyebrow">Lägg på hemskärmen</p>
+      <p class="hint" style="margin-top:0">Öppna sidan i Chrome på telefonen, tryck på menyn med tre punkter och välj <b>Lägg till på startskärmen</b>. Då startar den som en app, utan adressfält.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+/* Lagring: använder Claudes artefaktlagring om den finns, annars webbläsarens
+   egen localStorage. Samma kod fungerar alltså både i Claude och på egen domän. */
+const store = (typeof window.storage === "object" && window.storage && typeof window.storage.get === "function")
+  ? window.storage
+  : {
+      get: async k => { const v = localStorage.getItem(k); return v === null ? null : {key:k, value:v}; },
+      set: async (k,v) => { localStorage.setItem(k,v); return {key:k, value:v}; }
+    };
+
+
+const MONTHS = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+const MONTHS_LONG = ["januari","februari","mars","april","maj","juni","juli","augusti","september","oktober","november","december"];
+const KEY = "arsbudget-v1";
+
+const DEFAULTS = [
+  ["Hyra STHLM","fast",7500],
+  ["El STHLM","fast",700],
+  ["Hemförsäkring STHLM","fast",250],
+  ["Hyra CPH","fast",0],
+  ["El CPH","fast",0],
+  ["Hemförsäkring CPH","fast",0],
+  ["Bredband och TV STHLM","fast",450],
+  ["Bredband och TV CPH","fast",0],
+  ["Mobilabonnemang S","fast",400],
+  ["Mobilabonnemang E","fast",400],
+  ["Lån och räntor","fast",3000],
+  ["Fackavgift och a-kassa","fast",400],
+  ["Bil: skatt, försäkring, service","fast",900],
+  ["Träningskort Sats S","fast",0],
+  ["Träningskort Sats E","fast",0],
+  ["Sjukförsäkring S","fast",0],
+  ["Sjukförsäkring E","fast",0],
+  ["Bidrag Alva","fast",0],
+  ["Kostnader Dundret","fast",0],
+  ["Sparande","fast",2000],
+  ["Mat och livsmedel","rorlig",6000],
+  ["Restaurang och café","rorlig",1200],
+  ["Drivmedel och resor","rorlig",1500],
+  ["Kläder och skor","rorlig",700],
+  ["Hälsa och apotek","rorlig",400],
+  ["Husdjur","rorlig",400],
+  ["Nöje och kultur","rorlig",700],
+  ["Present och fest","rorlig",500],
+  ["Semester","rorlig",1500],
+  ["Liftkort","rorlig",0],
+  ["Hem och inredning","rorlig",600],
+  ["Claude mm","rorlig",0],
+  ["Övrigt","rorlig",500]
+];
+
+let data = null;
+let year = new Date().getFullYear();
+let month = new Date().getMonth();
+let view = "manad";
+let saveTimer = null;
+
+/* ---------- hjälpare ---------- */
+const nf = new Intl.NumberFormat("sv-SE",{maximumFractionDigits:0});
+const fmt = n => nf.format(Math.round(n||0));
+const uid = () => "c"+Math.random().toString(36).slice(2,9);
+const zeros = () => Array(12).fill(0);
+
+function parseNum(s){
+  if(s==null) return 0;
+  const t = String(s).replace(/\s|\u00a0|kr/gi,"").replace(",",".");
+  if(t==="") return 0;
+  const v = parseFloat(t);
+  return isFinite(v) ? v : 0;
+}
+
+function seed(){
+  return {
+    version:4,
+    categories: DEFAULTS.map(([name,type,budget])=>({id:uid(),name,type,budget})),
+    years:{}
+  };
+}
+
+/* Byter namn på de gamla bostadsposterna och lägger till de nya,
+   utan att röra belopp som redan är inskrivna. */
+const V2_RENAME = {
+  "Avgift eller hyra":"Hyra STHLM",
+  "El":"El STHLM",
+  "Hemförsäkring":"Hemförsäkring STHLM"
+};
+const V2_AFTER = [
+  ["Hyra STHLM",        ["Hyra CPH","fast",0]],
+  ["El STHLM",          ["El CPH","fast",0]],
+  ["Hemförsäkring STHLM",["Hemförsäkring CPH","fast",0]]
+];
+const V2_APPEND = [
+  ["Träningskort Sats S","fast",0],
+  ["Träningskort Sats E","fast",0],
+  ["Sjukförsäkring S","fast",0],
+  ["Sjukförsäkring E","fast",0]
+];
+const V3_APPEND = [
+  ["Bidrag Alva","fast",0],
+  ["Kostnader Dundret","fast",0],
+  ["Liftkort","rorlig",0],
+  ["Claude mm","rorlig",0]
+];
+const V4_RENAME = {
+  "Bredband och TV":"Bredband och TV STHLM",
+  "Mobilabonnemang":"Mobilabonnemang S"
+};
+const V4_AFTER = [
+  ["Bredband och TV STHLM",["Bredband och TV CPH","fast",0]],
+  ["Mobilabonnemang S",    ["Mobilabonnemang E","fast",0]]
+];
+
+function migrate(){
+  const has = n => data.categories.some(c=>c.name===n);
+  const mk = ([name,type,budget]) => ({id:uid(),name,type,budget});
+  const rename = map => data.categories.forEach(c=>{ if(map[c.name]) c.name = map[c.name]; });
+  const after = list => list.forEach(([anchor,def])=>{
+    if(has(def[0])) return;
+    const i = data.categories.findIndex(c=>c.name===anchor);
+    const cat = mk(def);
+    if(i>=0) data.categories.splice(i+1,0,cat); else data.categories.push(cat);
+  });
+  const append = list => list.forEach(def=>{ if(!has(def[0])) data.categories.push(mk(def)); });
+  let changed = false;
+
+  if(data.version < 2){
+    rename(V2_RENAME); after(V2_AFTER); append(V2_APPEND);
+    data.version = 2;
+    changed = true;
+  }
+
+  if(data.version < 3){
+    append(V3_APPEND);
+    data.version = 3;
+    changed = true;
+  }
+
+  if(data.version < 4){
+    rename(V4_RENAME); after(V4_AFTER);
+    data.version = 4;
+    changed = true;
+  }
+
+  return changed;
+}
+
+function yearData(y){
+  const k = String(y);
+  if(!data.years[k]) data.years[k] = {actuals:{},income:zeros()};
+  const yd = data.years[k];
+  if(!Array.isArray(yd.income) || yd.income.length!==12) yd.income = zeros();
+  data.categories.forEach(c=>{
+    if(!Array.isArray(yd.actuals[c.id]) || yd.actuals[c.id].length!==12) yd.actuals[c.id]=zeros();
+  });
+  return yd;
+}
+
+/* ---------- lagring ---------- */
+async function load(){
+  try{
+    const r = await store.get(KEY);
+    data = r && r.value ? JSON.parse(r.value) : seed();
+  }catch(e){
+    data = seed();
+  }
+  if(!data || !Array.isArray(data.categories) || !data.categories.length) data = seed();
+  if(!data.years) data.years = {};
+  if(!data.version) data.version = 1;
+  if(migrate()) save();
+}
+
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{
+      await store.set(KEY, JSON.stringify(data));
+      flash("Sparat "+new Date().toLocaleTimeString("sv-SE",{hour:"2-digit",minute:"2-digit"}));
+    }catch(e){
+      flash("Kunde inte spara. Kontrollera att sidan får lagra data.");
+    }
+  },400);
+}
+function flash(t){
+  const el = document.getElementById("saved");
+  el.textContent = t;
+  clearTimeout(flash._t);
+  flash._t = setTimeout(()=>{el.textContent="";},2600);
+}
+
+/* ---------- beräkningar ---------- */
+function monthTotals(m){
+  const yd = yearData(year);
+  let fast=0, rorlig=0, budget=0;
+  data.categories.forEach(c=>{
+    const v = (yd.actuals[c.id]||zeros())[m]||0;
+    if(c.type==="fast") fast+=v; else rorlig+=v;
+    budget += c.budget||0;
+  });
+  return {fast,rorlig,total:fast+rorlig,budget,income:yd.income[m]||0};
+}
+function yearTotals(){
+  let fast=0,rorlig=0,budget=0,income=0;
+  for(let m=0;m<12;m++){
+    const t = monthTotals(m);
+    fast+=t.fast; rorlig+=t.rorlig; income+=t.income;
+  }
+  data.categories.forEach(c=> budget += (c.budget||0)*12);
+  return {fast,rorlig,total:fast+rorlig,budget,income};
+}
+function monthsWithData(){
+  let n=0;
+  for(let m=0;m<12;m++) if(monthTotals(m).total>0) n++;
+  return n;
+}
+
+/* ---------- rendering: månad ---------- */
+function renderChips(){
+  const box = document.getElementById("monthChips");
+  box.innerHTML = "";
+  MONTHS.forEach((name,i)=>{
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.setAttribute("aria-pressed", i===month ? "true":"false");
+    b.onclick = ()=>{ month=i; renderMonth(); };
+    box.appendChild(b);
+  });
+  const active = box.children[month];
+  if(active) active.scrollIntoView({inline:"center",block:"nearest"});
+}
+
+function sumBox(el, items){
+  el.innerHTML = items.map(it=>
+    `<div><div class="k">${it.k}</div><div class="v ${it.cls||""}">${it.v}</div></div>`
+  ).join("");
+}
+
+function renderMonth(){
+  renderChips();
+  const t = monthTotals(month);
+  const diff = t.budget - t.total;
+  sumBox(document.getElementById("monthSum"),[
+    {k:"Utfall", v:fmt(t.total)},
+    {k:"Budget", v:fmt(t.budget)},
+    {k: diff>=0 ? "Under budget":"Över budget", v:fmt(Math.abs(diff)), cls: diff>=0?"pos":"neg"}
+  ]);
+
+  const inc = document.getElementById("incomeInput");
+  inc.value = t.income ? fmt(t.income) : "";
+  inc.oninput = e=>{
+    yearData(year).income[month] = parseNum(e.target.value);
+    save(); updateLeftOver();
+  };
+  inc.onblur = e=>{ const v=parseNum(e.target.value); e.target.value = v? fmt(v):""; };
+  updateLeftOver();
+
+  const wrap = document.getElementById("monthRows");
+  wrap.innerHTML = "";
+  ["fast","rorlig"].forEach(type=>{
+    const cats = data.categories.filter(c=>c.type===type);
+    if(!cats.length) return;
+    const sum = cats.reduce((a,c)=>a+((yearData(year).actuals[c.id]||zeros())[month]||0),0);
+    const head = document.createElement("div");
+    head.className="grouphead";
+    head.innerHTML = `<h2><span class="dot ${type==="fast"?"f":"r"}"></span>${type==="fast"?"Fasta kostnader":"Rörliga kostnader"}</h2><span class="tot">${fmt(sum)} kr</span>`;
+    wrap.appendChild(head);
+
+    cats.forEach(c=>{
+      const yd = yearData(year);
+      const val = (yd.actuals[c.id]||zeros())[month]||0;
+      const row = document.createElement("div");
+      row.className="row";
+
+      const nm = document.createElement("div");
+      nm.className="name";
+      nm.innerHTML = `<b></b><small>budget ${fmt(c.budget)} kr</small>`;
+      nm.querySelector("b").textContent = c.name;
+      row.appendChild(nm);
+
+      const inp = document.createElement("input");
+      inp.className="amt"; inp.inputMode="decimal"; inp.placeholder="0";
+      inp.value = val ? fmt(val) : "";
+      inp.setAttribute("aria-label", c.name+" i "+MONTHS_LONG[month]);
+      inp.oninput = e=>{
+        yd.actuals[c.id][month] = parseNum(e.target.value);
+        save(); refreshMonthSums();
+      };
+      inp.onblur = e=>{ const v=parseNum(e.target.value); e.target.value = v? fmt(v):""; renderMonth(); };
+      row.appendChild(inp);
+
+      if(type==="fast"){
+        const fill = document.createElement("button");
+        fill.className="fill"; fill.textContent="»";
+        fill.title="Fyll resten av året med samma belopp";
+        fill.setAttribute("aria-label","Fyll resten av året med samma belopp för "+c.name);
+        fill.onclick = ()=>{
+          const v = parseNum(inp.value);
+          for(let m=month;m<12;m++) yd.actuals[c.id][m]=v;
+          save(); renderMonth();
+          flash(c.name+" fylld till december");
+        };
+        row.appendChild(fill);
+      }
+      wrap.appendChild(row);
+    });
+  });
+}
+
+function refreshMonthSums(){
+  const t = monthTotals(month);
+  const diff = t.budget - t.total;
+  sumBox(document.getElementById("monthSum"),[
+    {k:"Utfall", v:fmt(t.total)},
+    {k:"Budget", v:fmt(t.budget)},
+    {k: diff>=0 ? "Under budget":"Över budget", v:fmt(Math.abs(diff)), cls: diff>=0?"pos":"neg"}
+  ]);
+  updateLeftOver();
+}
+
+function updateLeftOver(){
+  const t = monthTotals(month);
+  const el = document.getElementById("leftOver");
+  if(!t.income){ el.textContent = "Fyll i inkomsten om ni vill se vad som blir kvar."; return; }
+  const kvar = t.income - t.total;
+  el.innerHTML = kvar>=0
+    ? `Kvar efter utgifter i ${MONTHS_LONG[month]}: <b>${fmt(kvar)} kr</b>`
+    : `Ni ligger <b>${fmt(-kvar)} kr</b> över inkomsten i ${MONTHS_LONG[month]}.`;
+}
+
+/* ---------- rendering: år ---------- */
+function renderStrip(){
+  const svg = document.getElementById("strip");
+  const W=372, H=150, padL=6, padB=18, padT=10;
+  const bw=20, gap=10;
+  const rows=[];
+  let max=0;
+  for(let m=0;m<12;m++){
+    const t=monthTotals(m);
+    rows.push(t);
+    max=Math.max(max,t.total,t.budget);
+  }
+  if(max<=0) max=1;
+  const plotH = H-padB-padT;
+  const y = v => padT + plotH - (v/max)*plotH;
+  let s = "";
+
+  // budgetlinje
+  const bud = rows[0].budget;
+  if(bud>0){
+    s += `<line x1="${padL}" y1="${y(bud)}" x2="${W-padL}" y2="${y(bud)}" stroke="#66746F" stroke-width="1" stroke-dasharray="4 4"/>`;
+  }
+  rows.forEach((t,i)=>{
+    const x = padL + 4 + i*(bw+gap);
+    const hF = (t.fast/max)*plotH;
+    const hR = (t.rorlig/max)*plotH;
+    const yR = padT + plotH - hR;
+    const yF = yR - hF;
+    const over = bud>0 && t.total>bud;
+    if(hR>0) s += `<rect class="bar" data-m="${i}" x="${x}" y="${yR}" width="${bw}" height="${hR}" fill="${over?'#A33F3B':'#C08327'}" rx="2"/>`;
+    if(hF>0) s += `<rect class="bar" data-m="${i}" x="${x}" y="${yF}" width="${bw}" height="${hF}" fill="#2E6C63" rx="2"/>`;
+    if(t.total<=0) s += `<rect class="bar" data-m="${i}" x="${x}" y="${padT+plotH-3}" width="${bw}" height="3" fill="#DDE2DC" rx="1"/>`;
+    s += `<rect class="bar" data-m="${i}" x="${x}" y="${padT}" width="${bw}" height="${plotH}" fill="transparent"/>`;
+    s += `<text x="${x+bw/2}" y="${H-5}" text-anchor="middle" class="${i===month?'on':''}">${MONTHS[i][0].toUpperCase()}</text>`;
+  });
+  svg.innerHTML = s;
+  svg.querySelectorAll(".bar").forEach(b=>{
+    b.addEventListener("click",()=>{
+      month = +b.dataset.m;
+      switchView("manad");
+    });
+  });
+}
+
+function renderYear(){
+  renderStrip();
+  const t = yearTotals();
+  const n = monthsWithData() || 1;
+  const diff = t.budget - t.total;
+  sumBox(document.getElementById("yearSum"),[
+    {k:"Utfall "+year, v:fmt(t.total)},
+    {k:"Snitt per månad", v:fmt(t.total/n)},
+    {k: diff>=0?"Kvar av budget":"Över budget", v:fmt(Math.abs(diff)), cls:diff>=0?"pos":"neg"}
+  ]);
+
+  const yd = yearData(year);
+  const tbl = document.getElementById("yearTable");
+  let h = "<thead><tr><th class='stick'>Kategori</th>";
+  MONTHS.forEach(m=> h+=`<th>${m}</th>`);
+  h += "<th>Totalt</th></tr></thead><tbody>";
+
+  const colTot = zeros();
+  ["fast","rorlig"].forEach(type=>{
+    const cats = data.categories.filter(c=>c.type===type);
+    if(!cats.length) return;
+    h += `<tr class="grp"><td class="stick">${type==="fast"?"Fasta":"Rörliga"}</td><td colspan="13"></td></tr>`;
+    cats.forEach(c=>{
+      const arr = yd.actuals[c.id]||zeros();
+      const sum = arr.reduce((a,b)=>a+b,0);
+      h += `<tr><td class="stick" title="${c.name.replace(/"/g,'&quot;')}">${c.name}</td>`;
+      for(let m=0;m<12;m++){
+        colTot[m]+=arr[m]||0;
+        h += `<td><input inputmode="decimal" data-c="${c.id}" data-m="${m}" value="${arr[m]?fmt(arr[m]):""}" placeholder="·" aria-label="${c.name} ${MONTHS_LONG[m]}"></td>`;
+      }
+      h += `<td class="sum-col">${sum?fmt(sum):"·"}</td></tr>`;
+    });
+  });
+  h += "</tbody><tfoot><tr><td class='stick'>Summa</td>";
+  MONTHS.forEach((_,m)=> h+=`<td>${colTot[m]?fmt(colTot[m]):"·"}</td>`);
+  h += `<td class="sum-col">${fmt(t.total)}</td></tr></tfoot>`;
+  tbl.innerHTML = h;
+
+  tbl.querySelectorAll("input").forEach(inp=>{
+    inp.oninput = e=>{
+      const {c,m} = e.target.dataset;
+      yd.actuals[c][+m] = parseNum(e.target.value);
+      save();
+    };
+    inp.onblur = ()=> renderYear();
+  });
+
+  renderSub(yd, t.total);
+}
+
+/* Delsummor per bostad och person. Taggen läses ur sista ordet i kategorinamnet,
+   så en ny post följer automatiskt med om den heter till exempel "Vatten CPH". */
+const TAGS = [
+  {key:"STHLM", label:"Bostad STHLM"},
+  {key:"CPH",   label:"Bostad CPH"},
+  {key:"S",     label:"Person S"},
+  {key:"E",     label:"Person E"}
+];
+const TAG_KEYS = TAGS.map(t=>t.key);
+function tagOf(name){
+  const last = String(name||"").trim().split(/\s+/).pop();
+  return TAG_KEYS.includes(last) ? last : null;
+}
+
+function renderSub(yd, yearTot){
+  const head = document.getElementById("subHead");
+  const wrap = document.getElementById("subWrap");
+  const hint = document.getElementById("subHint");
+
+  const groups = TAGS
+    .map(t => ({...t, cats: data.categories.filter(c=>tagOf(c.name)===t.key)}))
+    .filter(g => g.cats.length);
+
+  if(!groups.length){
+    head.hidden = wrap.hidden = hint.hidden = true;
+    return;
+  }
+  head.hidden = wrap.hidden = false;
+
+  let h = "<thead><tr><th class='stick'>Delsumma</th>";
+  MONTHS.forEach(m => h += `<th>${m}</th>`);
+  h += "<th>Totalt</th></tr></thead><tbody>";
+
+  const shares = [];
+  groups.forEach(g=>{
+    const per = zeros();
+    g.cats.forEach(c=>{
+      const arr = yd.actuals[c.id]||zeros();
+      for(let m=0;m<12;m++) per[m] += arr[m]||0;
+    });
+    const sum = per.reduce((a,b)=>a+b,0);
+    shares.push({label:g.label, sum, n:g.cats.length});
+    h += `<tr><td class="stick" title="${g.cats.length} poster">${g.label}</td>`;
+    for(let m=0;m<12;m++) h += `<td>${per[m]?fmt(per[m]):"·"}</td>`;
+    h += `<td class="sum-col">${sum?fmt(sum):"·"}</td></tr>`;
+  });
+  h += "</tbody>";
+  document.getElementById("subTable").innerHTML = h;
+
+  const withData = shares.filter(s=>s.sum>0);
+  if(yearTot > 0 && withData.length){
+    hint.hidden = false;
+    hint.innerHTML = "Andel av årets utgifter: " + withData
+      .map(s => `${s.label} <b>${Math.round(s.sum/yearTot*100)} %</b>`)
+      .join(" · ") +
+      ". Resten är poster utan tagg, som mat och lån.";
+  }else{
+    hint.hidden = true;
+  }
+}
+
+/* ---------- rendering: kategorier ---------- */
+function renderCats(){
+  const box = document.getElementById("catList");
+  box.innerHTML = "";
+  if(!data.categories.length){
+    box.innerHTML = '<p class="empty">Inga kategorier än. Lägg till den första nedan.</p>';
+    return;
+  }
+  data.categories.forEach(c=>{
+    const row = document.createElement("div");
+    row.className="cat";
+
+    const nm = document.createElement("input");
+    nm.className="nm"; nm.value=c.name; nm.setAttribute("aria-label","Namn på kategori");
+    nm.oninput = e=>{ c.name = e.target.value; save(); };
+    row.appendChild(nm);
+
+    const tp = document.createElement("button");
+    tp.className="type"; tp.dataset.t=c.type;
+    tp.textContent = c.type==="fast" ? "Fast":"Rörlig";
+    tp.onclick = ()=>{ c.type = c.type==="fast"?"rorlig":"fast"; save(); renderCats(); };
+    row.appendChild(tp);
+
+    const bd = document.createElement("input");
+    bd.className="amt bud"; bd.inputMode="decimal"; bd.value = c.budget?fmt(c.budget):"";
+    bd.placeholder="0"; bd.setAttribute("aria-label","Månadsbudget för "+c.name);
+    bd.oninput = e=>{ c.budget = parseNum(e.target.value); save(); };
+    bd.onblur = e=>{ e.target.value = c.budget?fmt(c.budget):""; };
+    row.appendChild(bd);
+
+    const del = document.createElement("button");
+    del.className="del"; del.textContent="×";
+    del.setAttribute("aria-label","Ta bort "+c.name);
+    del.onclick = ()=>{
+      if(!confirm("Ta bort "+c.name+"? Alla belopp för den kategorin försvinner, alla år.")) return;
+      data.categories = data.categories.filter(x=>x.id!==c.id);
+      Object.values(data.years).forEach(y=>{ delete y.actuals[c.id]; });
+      save(); renderCats();
+    };
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+
+/* ---------- export och import ---------- */
+function download(name, text, mime){
+  const blob = new Blob([text],{type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url; a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url); a.remove();},500);
+}
+
+function exportCsv(){
+  const yd = yearData(year);
+  const rows = [["Kategori","Typ","Budget/mån",...MONTHS,"Totalt"]];
+  data.categories.forEach(c=>{
+    const arr = yd.actuals[c.id]||zeros();
+    rows.push([c.name, c.type==="fast"?"Fast":"Rörlig", c.budget, ...arr, arr.reduce((a,b)=>a+b,0)]);
+  });
+  rows.push(["Inkomst","","",...yd.income, yd.income.reduce((a,b)=>a+b,0)]);
+  const csv = "\ufeff"+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";")).join("\n");
+  download(`arsbudget-${year}.csv`, csv, "text/csv;charset=utf-8");
+}
+
+/* ---------- vyer ---------- */
+function switchView(v){
+  view = v;
+  document.querySelectorAll("nav button").forEach(b=>
+    b.setAttribute("aria-selected", b.dataset.view===v ? "true":"false"));
+  document.getElementById("view-manad").hidden = v!=="manad";
+  document.getElementById("view-ar").hidden = v!=="ar";
+  document.getElementById("view-kat").hidden = v!=="kat";
+  window.scrollTo(0,0);
+  if(v==="manad") renderMonth();
+  if(v==="ar") renderYear();
+  if(v==="kat") renderCats();
+}
+
+function renderAll(){
+  document.getElementById("yLabel").textContent = year;
+  yearData(year);
+  switchView(view);
+}
+
+/* ---------- start ---------- */
+(async function init(){
+  await load();
+
+  document.querySelectorAll("nav button").forEach(b=>
+    b.onclick = ()=> switchView(b.dataset.view));
+
+  document.getElementById("yPrev").onclick = ()=>{ year--; yearData(year); save(); renderAll(); };
+  document.getElementById("yNext").onclick = ()=>{ year++; yearData(year); save(); renderAll(); };
+
+  document.getElementById("addCat").onclick = ()=>{
+    const c = {id:uid(), name:"Ny kategori", type:"rorlig", budget:0};
+    data.categories.push(c);
+    Object.values(data.years).forEach(y=>{ y.actuals[c.id]=zeros(); });
+    save(); renderCats();
+    const inputs = document.querySelectorAll("#catList .nm");
+    const last = inputs[inputs.length-1];
+    if(last){ last.focus(); last.select(); }
+  };
+
+  document.getElementById("resetAll").onclick = ()=>{
+    if(!confirm("Rensa allt och börja om med standardkategorier? Alla belopp för alla år försvinner.")) return;
+    data = seed(); save(); renderAll();
+  };
+
+  document.getElementById("expJson").onclick = ()=>
+    download(`arsbudget-backup-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(data,null,2), "application/json");
+
+  document.getElementById("expCsv").onclick = exportCsv;
+
+  document.getElementById("impBtn").onclick = ()=> document.getElementById("impFile").click();
+  document.getElementById("impFile").onchange = e=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try{
+        const d = JSON.parse(r.result);
+        if(!d.categories || !d.years) throw new Error("fel format");
+        if(!confirm("Ersätt allt som finns här med innehållet i filen?")) return;
+        data = d; save(); renderAll();
+        flash("Importerat");
+      }catch(err){
+        alert("Filen gick inte att läsa. Välj en fil som exporterats från Årsbudget.");
+      }
+    };
+    r.readAsText(f);
+    e.target.value = "";
+  };
+
+  renderAll();
+
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", ()=>{
+      navigator.serviceWorker.register("sw.js").catch(()=>{});
+    });
+  }
+})();
+</script>
+</body>
+</html>

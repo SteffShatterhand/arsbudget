@@ -1,0 +1,17 @@
+{
+  "name": "Årsbudget",
+  "short_name": "Årsbudget",
+  "description": "Fasta och rörliga kostnader månad för månad, för hela hushållet.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F1F3EF",
+  "theme_color": "#12302C",
+  "lang": "sv-SE",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
