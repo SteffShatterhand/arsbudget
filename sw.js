@@ -1,6 +1,6 @@
 /* Service worker för Årsbudget.
    Höj CACHE när du laddar upp en ny version, annars ligger den gamla kvar. */
-const CACHE = "arsbudget-v5";
+const CACHE = "arsbudget-v6";
 const ASSETS = [
   "./",
   "./index.html",

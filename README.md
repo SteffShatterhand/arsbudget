@@ -36,6 +36,11 @@ telefonen att visa den gamla versionen.
 ## Om lagringen
 
 Varje enhet har sin egen kopia i `localStorage` under nyckeln `arsbudget-v1`.
-Ingen synkning sker mellan enheter. Använd Exportera och Importera under fliken **År**
-för att flytta siffrorna mellan telefoner. Rensar man webbläsardata försvinner budgeten,
+Ingen synkning sker mellan enheter. Under fliken **År** finns tre sätt att flytta data:
+
+- **Exportera fil** — sparar hela budgeten som JSON.
+- **Importera fil** — ersätter allt med filens innehåll.
+- **Slå ihop med fil** — behåller det som finns och lägger till filens siffror. Kategorier
+  matchas på namn, eftersom två enheter har olika interna id. Rutor där båda skrivit ett
+  belopp visas som konflikter och du väljer själv: behåll mitt, ta filens eller summera. Rensar man webbläsardata försvinner budgeten,
 så exportera en säkerhetskopia då och då.

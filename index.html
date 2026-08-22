@@ -194,6 +194,27 @@ tfoot .stick{background:var(--card)}
 .cat .del{border:0;background:transparent;color:var(--muted);font-size:19px;padding:2px 6px;line-height:1}
 .hint{font-size:13px;color:var(--muted);margin:10px 2px 0}
 .hint b{color:var(--ink);font-weight:600}
+
+/* ---------- sammanslagning ---------- */
+#mergePanel{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.mg-sum{font-size:13px;margin:0 0 10px}
+.mg-sum b{font-weight:600}
+.mg-bulk{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.mg-bulk button{
+  border:1px solid var(--line);background:var(--card);border-radius:999px;
+  padding:6px 11px;font-size:12px;color:var(--muted);
+}
+.mg-list{max-height:340px;overflow-y:auto;margin:4px 0 12px}
+.conf{border-top:1px solid var(--line);padding:9px 2px}
+.conf .lbl{font-size:13px}
+.conf .lbl span{color:var(--muted);font-family:var(--data);font-size:12px;display:block}
+.conf .opts{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.conf .opts button{
+  border:1px solid var(--line);background:var(--card);border-radius:999px;
+  padding:5px 11px;font-size:12px;font-family:var(--data);color:var(--muted);
+  font-variant-numeric:tabular-nums;
+}
+.conf .opts button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
 .empty{color:var(--muted);font-size:14px;padding:18px 4px;text-align:center}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -260,13 +281,16 @@ tfoot .stick{background:var(--card)}
 
     <div class="card" style="margin-top:12px">
       <p class="eyebrow">Dela och säkerhetskopiera</p>
-      <p class="hint" style="margin-top:0">Varje enhet sparar sin egen kopia. Exportera en fil och skicka den till din fru så ni utgår från samma siffror.</p>
+      <p class="hint" style="margin-top:0"><b>Importera</b> ersätter allt med filens innehåll. <b>Slå ihop</b> behåller det du har och lägger till filens siffror, och frågar dig om varje ruta där ni båda skrivit något.</p>
       <div class="btnrow" style="margin-top:10px">
         <button class="btn ghost" id="expJson">Exportera fil</button>
+        <button class="btn ghost" id="mergeBtn">Slå ihop med fil</button>
         <button class="btn ghost" id="impBtn">Importera fil</button>
         <button class="btn ghost" id="expCsv">Exportera CSV</button>
       </div>
       <input type="file" id="impFile" accept="application/json,.json" hidden>
+      <input type="file" id="mergeFile" accept="application/json,.json" hidden>
+      <div id="mergePanel" hidden></div>
     </div>
   </section>
 
@@ -710,6 +734,7 @@ function renderYear(){
   });
 
   renderSub(yd, t.total);
+  renderMergePanel();
 }
 
 /* Delsummor per bostad och person. Taggen läses ur sista ordet i kategorinamnet,
@@ -838,6 +863,153 @@ function exportCsv(){
   download(`arsbudget-${year}.csv`, csv, "text/csv;charset=utf-8");
 }
 
+/* ---------- slå ihop två versioner ----------
+   Kategorier matchas på namn, inte id: två enheter som installerats var för sig
+   har olika id för samma post. En ruta där bara den ena har ett belopp tas rakt av.
+   En ruta där båda skrivit något blir en konflikt som du får avgöra. */
+let mergePlan = null;
+
+function buildMergePlan(inc){
+  const byName = {};
+  data.categories.forEach(c=>{ byName[c.name.trim().toLowerCase()] = c; });
+
+  const plan = {newCats:[], takes:[], conflicts:[], years:[]};
+  const incCats = Array.isArray(inc.categories) ? inc.categories : [];
+
+  incCats.forEach(ic=>{
+    const key = String(ic.name||"").trim().toLowerCase();
+    if(!key) return;
+    if(!byName[key]){
+      const fresh = {id:uid(), name:ic.name, type: ic.type==="fast"?"fast":"rorlig", budget: +ic.budget||0};
+      plan.newCats.push(fresh);
+      byName[key] = fresh;
+    }else if(!byName[key].budget && +ic.budget){
+      plan.newCats.push(null);                       // räknas inte som ny post
+      byName[key].__budgetFromFile = +ic.budget;     // fylls på vid tillämpning
+    }
+  });
+  plan.newCats = plan.newCats.filter(Boolean);
+
+  Object.keys(inc.years||{}).forEach(yk=>{
+    const iy = inc.years[yk];
+    if(!iy) return;
+    plan.years.push(yk);
+    const my = yearData(+yk);
+
+    incCats.forEach(ic=>{
+      const key = String(ic.name||"").trim().toLowerCase();
+      const target = byName[key];
+      if(!target) return;
+      const theirArr = (iy.actuals||{})[ic.id] || [];
+      for(let m=0;m<12;m++){
+        const theirs = +theirArr[m] || 0;
+        if(!theirs) continue;
+        const mine = +((my.actuals[target.id]||[])[m] || 0);
+        if(!mine) plan.takes.push({y:+yk, cat:target, m, val:theirs});
+        else plan.conflicts.push({y:+yk, cat:target, m, mine, theirs, choice:"mine"});
+      }
+    });
+
+    const theirInc = Array.isArray(iy.income) ? iy.income : [];
+    for(let m=0;m<12;m++){
+      const theirs = +theirInc[m] || 0;
+      if(!theirs) continue;
+      const mine = +(my.income[m] || 0);
+      if(!mine) plan.takes.push({y:+yk, income:true, m, val:theirs});
+      else plan.conflicts.push({y:+yk, income:true, m, mine, theirs, choice:"mine"});
+    }
+  });
+
+  return plan;
+}
+
+function renderMergePanel(){
+  const el = document.getElementById("mergePanel");
+  if(!mergePlan){ el.hidden = true; el.innerHTML = ""; return; }
+  el.hidden = false;
+
+  const p = mergePlan;
+  let h = `<p class="mg-sum">Filen innehåller <b>${p.newCats.length}</b> nya kategorier, `
+        + `<b>${p.takes.length}</b> belopp som saknas hos dig och `
+        + `<b>${p.conflicts.length}</b> rutor där ni båda skrivit något.</p>`;
+
+  if(p.conflicts.length){
+    h += `<div class="mg-bulk">
+            <button data-all="sum">Summera alla</button>
+            <button data-all="mine">Behåll mina</button>
+            <button data-all="theirs">Ta filens</button>
+          </div><div class="mg-list">`;
+    p.conflicts.forEach((c,i)=>{
+      const namn = c.income ? "Inkomst" : c.cat.name;
+      h += `<div class="conf">
+              <div class="lbl">${namn}<span>${MONTHS_LONG[c.m]} ${c.y}</span></div>
+              <div class="opts" data-i="${i}">
+                <button data-c="mine">mitt ${fmt(c.mine)}</button>
+                <button data-c="theirs">filens ${fmt(c.theirs)}</button>
+                <button data-c="sum">summa ${fmt(c.mine + c.theirs)}</button>
+              </div>
+            </div>`;
+    });
+    h += `</div>`;
+  }
+
+  h += `<div class="btnrow">
+          <button class="btn" id="mgApply">Slå ihop</button>
+          <button class="btn ghost" id="mgCancel">Avbryt</button>
+        </div>`;
+  el.innerHTML = h;
+
+  const paint = ()=> el.querySelectorAll(".opts").forEach(o=>{
+    const c = p.conflicts[+o.dataset.i];
+    o.querySelectorAll("button").forEach(b=>
+      b.setAttribute("aria-pressed", b.dataset.c===c.choice ? "true":"false"));
+  });
+  paint();
+
+  el.querySelectorAll(".opts button").forEach(b=>{
+    b.onclick = ()=>{
+      p.conflicts[+b.parentElement.dataset.i].choice = b.dataset.c;
+      paint();
+    };
+  });
+  el.querySelectorAll(".mg-bulk button").forEach(b=>{
+    b.onclick = ()=>{ p.conflicts.forEach(c=> c.choice = b.dataset.all); paint(); };
+  });
+  document.getElementById("mgApply").onclick = applyMerge;
+  document.getElementById("mgCancel").onclick = ()=>{ mergePlan = null; renderMergePanel(); };
+}
+
+function applyMerge(){
+  const p = mergePlan;
+  if(!p) return;
+
+  p.newCats.forEach(c=>{
+    data.categories.push(c);
+    Object.values(data.years).forEach(y=>{ y.actuals[c.id] = zeros(); });
+  });
+  data.categories.forEach(c=>{
+    if(c.__budgetFromFile){ c.budget = c.__budgetFromFile; delete c.__budgetFromFile; }
+  });
+  p.years.forEach(yk=> yearData(+yk));
+
+  const put = (y, item, val)=>{
+    const yd = yearData(y);
+    if(item.income) yd.income[item.m] = val;
+    else{
+      if(!yd.actuals[item.cat.id]) yd.actuals[item.cat.id] = zeros();
+      yd.actuals[item.cat.id][item.m] = val;
+    }
+  };
+  p.takes.forEach(t=> put(t.y, t, t.val));
+  p.conflicts.forEach(c=>
+    put(c.y, c, c.choice==="sum" ? c.mine + c.theirs : c.choice==="theirs" ? c.theirs : c.mine));
+
+  mergePlan = null;
+  save();
+  renderAll();
+  flash("Sammanslaget");
+}
+
 /* ---------- vyer ---------- */
 function switchView(v){
   view = v;
@@ -889,6 +1061,32 @@ function renderAll(){
   document.getElementById("expCsv").onclick = exportCsv;
 
   document.getElementById("impBtn").onclick = ()=> document.getElementById("impFile").click();
+
+  document.getElementById("mergeBtn").onclick = ()=> document.getElementById("mergeFile").click();
+  document.getElementById("mergeFile").onchange = e=>{
+    const f = e.target.files[0];
+    e.target.value = "";
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = ()=>{
+      try{
+        const inc = JSON.parse(r.result);
+        if(!inc.categories || !inc.years) throw new Error("fel format");
+        mergePlan = buildMergePlan(inc);
+        if(!mergePlan.newCats.length && !mergePlan.takes.length && !mergePlan.conflicts.length){
+          mergePlan = null;
+          alert("Filen innehåller inget som saknas här. Ingenting att slå ihop.");
+          return;
+        }
+        renderMergePanel();
+        document.getElementById("mergePanel").scrollIntoView({block:"nearest"});
+      }catch(err){
+        alert("Filen gick inte att läsa. Välj en fil som exporterats från Årsbudget.");
+      }
+    };
+    r.readAsText(f);
+  };
+
   document.getElementById("impFile").onchange = e=>{
     const f = e.target.files[0];
     if(!f) return;
